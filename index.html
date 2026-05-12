@@ -30,6 +30,13 @@
   .view{display:none}
   .view.active{display:block}
   .payroll-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+  .pcard .dual{display:flex;align-items:flex-start;gap:14px;margin:6px 0 0}
+  .pcard .dual > div{flex:1;min-width:0}
+  .pcard .dual .sep{flex:0 0 1px;align-self:stretch;background:var(--line);margin:2px 0}
+  .pcard .dual .big{margin:0}
+  .pcard .dual .vlbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-top:4px}
+  .pcard .calc{font-size:11px;color:var(--muted);margin-top:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.5}
+  .pcard .calc b{color:var(--ink);font-weight:600}
   .pcard{background:var(--card);border:1px solid var(--line);border-radius:10px;
          padding:16px 18px;box-shadow:var(--shadow)}
   .pcard .name{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
@@ -106,6 +113,7 @@
   @media (max-width:900px){
     .kpis{grid-template-columns:1fr}
     .grid2{grid-template-columns:1fr}
+    .payroll-kpis{grid-template-columns:1fr}
   }
 
   /* Password lock overlay */
@@ -652,14 +660,31 @@ function bootDashboard(DATA){
     const ptHours = p.ptCr * HOURS_PER_CREDIT;
     const totalHours = p.totalCr * HOURS_PER_CREDIT;
     const ftPerHr = ftHours ? p.ftTotal / ftHours : 0;
+    const ftPerHrBase = ftHours ? p.ftBase / ftHours : 0;
     const ptPerHr = ptHours ? p.ptTotal / ptHours : 0;
     const blendedPerHr = totalHours ? (p.ftTotal + p.ptTotal) / totalHours : 0;
     document.getElementById("payroll-kpis").innerHTML = `
       <div class="pcard ft">
         <div class="name">Cost per FT teaching hour</div>
-        <div class="big">${fmtUSD2(ftPerHr)}<small>/ hour</small></div>
+        <div class="dual">
+          <div>
+            <div class="big">${fmtUSD2(ftPerHr)}<small>/ hr</small></div>
+            <div class="vlbl">with benefits</div>
+          </div>
+          <div class="sep"></div>
+          <div>
+            <div class="big">${fmtUSD2(ftPerHrBase)}<small>/ hr</small></div>
+            <div class="vlbl">base only</div>
+          </div>
+        </div>
         <div class="sub">${p.ftCr.toLocaleString()} FT credits &times; 15 = ${ftHours.toLocaleString()} hours (AY ${p.ay})</div>
-        <div class="totalrow"><span class="lbl">Total FT cost</span><span class="amt">${fmtUSD0(p.ftTotal)}</span></div>
+        <div class="calc">
+          <b>with benefits</b> = (base + schooling + insurance + EOS) &divide; hours<br>
+          &nbsp;&nbsp;= (${fmtUSD0(p.ftBase)} + ${fmtUSD0(p.schooling)} + ${fmtUSD0(p.insurance)} + ${fmtUSD0(p.eos)}) &divide; ${ftHours.toLocaleString()}<br>
+          &nbsp;&nbsp;= ${fmtUSD0(p.ftTotal)} &divide; ${ftHours.toLocaleString()} = <b>${fmtUSD2(ftPerHr)}/hr</b><br>
+          <b>base only</b> = base &divide; hours = ${fmtUSD0(p.ftBase)} &divide; ${ftHours.toLocaleString()} = <b>${fmtUSD2(ftPerHrBase)}/hr</b>
+        </div>
+        <div class="totalrow"><span class="lbl">Total FT cost (with benefits)</span><span class="amt">${fmtUSD0(p.ftTotal)}</span></div>
       </div>
       <div class="pcard pt">
         <div class="name">Cost per PT teaching hour</div>
