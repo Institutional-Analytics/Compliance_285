@@ -609,7 +609,7 @@
     <div class="panel">
       <h2>FT cost breakdown <span class="hint">academic year <span id="pay-ay-1"></span></span></h2>
       <table class="ledger" id="ft-ledger"></table>
-      <p class="note">FT total includes base pay (Fall + Spring + Summer), schooling, insurance, and end-of-service accrual at <code>1/12</code> of annual base (one month per AY).</p>
+      <p class="note">FT total = Fall + Spring base pay + schooling + insurance + end-of-service accrual at <code>1/12</code> of teaching-period base. <b>Summer FT base is excluded from the per-credit equation</b> because the teaching report contains no Summer credits &mdash; this keeps the credit denominator and salary numerator on the same time window.</p>
     </div>
     <div class="panel">
       <h2>PT cost breakdown <span class="hint">academic year <span id="pay-ay-2"></span></span></h2>
@@ -1671,7 +1671,9 @@ function bootDashboard(DATA){
     const F = PAY.by_semester[`Fall ${ay}`]   || {ft:0, pt:0};
     const S = PAY.by_semester[`Spring ${ay}`] || {ft:0, pt:0};
     const U = PAY.by_semester[`Summer ${ay}`] || {ft:0, pt:0};
-    const ftBase = F.ft + S.ft + U.ft;
+    // Summer FT base is excluded from the teaching-cost equation because the
+    // teaching report has no Summer credits. Keeping U around for display only.
+    const ftBase = F.ft + S.ft;
     const eos    = ftBase * (PAY.eos_fraction || (1/12));
     const ftTotal = ftBase + PAY.schooling + PAY.insurance + eos;
     const ptTotal = F.pt + S.pt;                 // per spec: Fall + Spring only
@@ -1756,11 +1758,11 @@ function bootDashboard(DATA){
     document.getElementById("ft-ledger").innerHTML = `
       <tr><td class="lbl">Base &mdash; Fall ${p.ay}</td><td class="amt">${fmtUSD0(p.F.ft)}</td></tr>
       <tr><td class="lbl">Base &mdash; Spring ${p.ay}</td><td class="amt">${fmtUSD0(p.S.ft)}</td></tr>
-      <tr><td class="lbl">Base &mdash; Summer ${p.ay}</td><td class="amt">${fmtUSD0(p.U.ft)}</td></tr>
-      <tr><td class="lbl"><b>Base subtotal</b></td><td class="amt"><b>${fmtUSD0(p.ftBase)}</b></td></tr>
+      <tr><td class="lbl" style="color:var(--muted);font-style:italic">Base &mdash; Summer ${p.ay} (excluded &mdash; no Summer credits reported)</td><td class="amt" style="color:var(--muted);text-decoration:line-through">${fmtUSD0(p.U.ft)}</td></tr>
+      <tr><td class="lbl"><b>Base subtotal (Fall + Spring)</b></td><td class="amt"><b>${fmtUSD0(p.ftBase)}</b></td></tr>
       <tr><td class="lbl">Schooling (benefits)</td><td class="amt">${fmtUSD0(p.schooling)}</td></tr>
       <tr><td class="lbl">Insurance (benefits)</td><td class="amt">${fmtUSD0(p.insurance)}</td></tr>
-      <tr><td class="lbl">End-of-service (1/12 of base)</td><td class="amt">${fmtUSD0(p.eos)}</td></tr>
+      <tr><td class="lbl">End-of-service (1/12 of F+S base)</td><td class="amt">${fmtUSD0(p.eos)}</td></tr>
       <tr class="total"><td>FT TOTAL</td><td class="amt">${fmtUSD0(p.ftTotal)}</td></tr>`;
 
     // PT ledger
@@ -2734,22 +2736,17 @@ function bootDashboard(DATA){
   // ---------- LIU-Wide Aggregate Plan ----------
   // Compliance is at the LIU aggregate level (50% FT and 50% PhD across all LIU credits).
   // This solves the cheapest path to clear both thresholds without forcing every
-  // (campus, major) to be individually compliant. Cost basis: published rate card
-  // (FT $115/hr base + benefits load; PT $35/hr) × 15 hr/credit.
+  // (campus, major) to be individually compliant. Cost basis: workbook-blended
+  // actual cost per credit (Fall + Spring only, Summer FT salary excluded).
   function delPublishedRates(premiumPct){
-    const HOURS_PER_CREDIT = 15;
-    const FT_HOURLY_BASE = 115;
-    const PT_HOURLY = 35;
     const p = computePayroll();
     if (!p) return null;
-    const ftBaseCr = FT_HOURLY_BASE * HOURS_PER_CREDIT;       // $1,725 / FT cr (base)
-    const benefitsTotal = p.schooling + p.insurance + p.eos;
-    const ftBenefitsCr = p.ftCr ? benefitsTotal / p.ftCr : 0; // load per FT cr
-    const ftLoaded = ftBaseCr + ftBenefitsCr;
-    const ptLoaded = PT_HOURLY * HOURS_PER_CREDIT;            // $525 / PT cr (no benefits per spec)
+    const ftLoaded = p.ftPerCr;       // Fall+Spring loaded FT cost / cr
+    const ptLoaded = p.ptPerCr;       // Fall+Spring PT cost / cr
     const k = 1 + (premiumPct || 0)/100;
+    const ftBaseCr     = p.ftCr ? p.ftBase / p.ftCr : 0;
+    const ftBenefitsCr = ftLoaded - ftBaseCr;
     return {
-      hourlyFTBase: FT_HOURLY_BASE, hourlyPT: PT_HOURLY,
       ftBaseCr, ftBenefitsCr,
       ftMaster: ftLoaded,
       ftPhd:    ftLoaded * k,
@@ -2820,12 +2817,12 @@ function bootDashboard(DATA){
           <p>Add <b>${fmtInt0(plan.ftCredits)} credits</b> of FT teaching across LIU. Body count depends on the assumed FT teaching load:</p>
           <div class="del-agg-scenarios">
             <div class="del-agg-scen">
-              <div class="lbl">Today's avg (${agg.avgFTLoad.toFixed(0)} cr/yr)</div>
+              <div class="lbl">Today's avg (${agg.avgFTLoad.toFixed(0)} cr/yr &middot; ${(agg.avgFTLoad/2).toFixed(0)} cr/sem)</div>
               <div class="val">~${plan.ftBodiesAvg} FT bodies</div>
-              <div class="sub">matches LIU's current FT workload</div>
+              <div class="sub">matches LIU's current FT workload (Fall + Spring)</div>
             </div>
             <div class="del-agg-scen">
-              <div class="lbl">Full-load contract (${plan.FT_FULL_LOAD} cr/yr)</div>
+              <div class="lbl">Full-load contract (${plan.FT_FULL_LOAD} cr/yr &middot; ${(plan.FT_FULL_LOAD/2).toFixed(0)} cr/sem)</div>
               <div class="val">~${plan.ftBodiesFull} FT bodies</div>
               <div class="sub">if new FTs sign on at full teaching load</div>
             </div>
@@ -2860,7 +2857,8 @@ function bootDashboard(DATA){
             <h3>LIU-Wide Minimum-Cost Plan</h3>
             <div class="agg-sub">Cheapest path to clear both 50% thresholds at the university aggregate.
               Individual majors and campuses may remain below 50% &mdash; this plan optimizes for total LIU
-              compliance, not per-major. Cost basis: published rate card ($${rates.hourlyFTBase}/hr FT base + benefits, $${rates.hourlyPT}/hr PT) &times; 15 hr/credit.</div>
+              compliance, not per-major. Cost basis: blended Fall + Spring actuals from the Payroll workbook &mdash;
+              FT ${fmtUSD(rates.ftMaster)}/cr loaded (${fmtUSD(rates.ftBaseCr)} base + ${fmtUSD(rates.ftBenefitsCr)} benefits), PT ${fmtUSD(rates.ptMaster)}/cr.</div>
           </div>
           <span class="agg-tag">Aggregate plan</span>
         </div>
